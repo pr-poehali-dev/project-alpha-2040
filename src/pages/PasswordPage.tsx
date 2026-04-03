@@ -6,7 +6,7 @@ import {
   X, KeyRound, List, SlidersHorizontal, Settings, Timer, RefreshCw,
   ChevronRight, Download, Upload, Smartphone, FolderPlus, Folder,
   Star, Heart, Zap, Home, Briefcase, ShoppingCart, Camera, Music,
-  BookOpen, Car, Coffee, Gamepad2, Plane, Sun,
+  BookOpen, Car, Coffee, Gamepad2, Plane, Sun, GripVertical,
 } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -786,6 +786,58 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 350, damping: 25 } },
 }
 
+// ─── Context Menu ─────────────────────────────────────────────────────────────
+interface CtxMenu { x: number; y: number; group: Group }
+
+function GroupContextMenu({ menu, onEdit, onDelete, onAddSub, onClose }: {
+  menu: CtxMenu
+  onEdit: (g: Group) => void
+  onDelete: (id: string) => void
+  onAddSub: (parentId: string) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose() }
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    document.addEventListener("mousedown", h)
+    document.addEventListener("keydown", k)
+    return () => { document.removeEventListener("mousedown", h); document.removeEventListener("keydown", k) }
+  }, [onClose])
+
+  // Keep inside viewport
+  const left = Math.min(menu.x, window.innerWidth - 170)
+  const top = Math.min(menu.y, window.innerHeight - 140)
+
+  return (
+    <motion.div ref={ref}
+      initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+      className="fixed z-[100] rounded-[14px] py-1.5 min-w-[160px] overflow-hidden"
+      style={{ left, top, background: "rgba(255,255,255,0.96)", backdropFilter: "blur(30px)", WebkitBackdropFilter: "blur(30px)",
+        border: "1px solid rgba(255,255,255,0.7)", boxShadow: "0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)" }}>
+      <div className="px-3 py-1.5 border-b border-gray-100">
+        <p className="text-[11px] font-semibold text-gray-400 truncate max-w-[140px]">{menu.group.name}</p>
+      </div>
+      <button onClick={() => { onEdit(menu.group); onClose() }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-gray-700 hover:bg-gray-50 transition-colors">
+        <Pencil className="h-3.5 w-3.5 text-blue-500" strokeWidth={2} />Редактировать
+      </button>
+      {!menu.group.parentId && (
+        <button onClick={() => { onAddSub(menu.group.id); onClose() }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-gray-700 hover:bg-gray-50 transition-colors">
+          <FolderPlus className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2} />Добавить подгруппу
+        </button>
+      )}
+      <div className="mx-3 my-1 h-px bg-gray-100" />
+      <button onClick={() => { onDelete(menu.group.id); onClose() }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-red-500 hover:bg-red-50 transition-colors">
+        <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />Удалить группу
+      </button>
+    </motion.div>
+  )
+}
+
 export function PasswordPage() {
   const [search, setSearch] = useState("")
   const [passwords, setPasswords] = useState(initialPasswords)
@@ -796,7 +848,12 @@ export function PasswordPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | undefined>(undefined)
+  const [newGroupParentId, setNewGroupParentId] = useState<string | undefined>(undefined)
   const [showGroupEditor, setShowGroupEditor] = useState(false)
+  const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
+  // DnD state
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
   const modeMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -804,6 +861,49 @@ export function PasswordPage() {
     document.addEventListener("mousedown", h)
     return () => document.removeEventListener("mousedown", h)
   }, [])
+
+  // Close ctx menu on scroll
+  useEffect(() => {
+    const h = () => setCtxMenu(null)
+    window.addEventListener("scroll", h, true)
+    return () => window.removeEventListener("scroll", h, true)
+  }, [])
+
+  const openCtxMenu = (e: React.MouseEvent, group: Group) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY, group })
+  }
+
+  // DnD handlers — reorder rootGroups, or move subgroups between parents
+  const handleDragStart = (id: string) => setDragId(id)
+  const handleDragOver = (e: React.DragEvent, id: string) => { e.preventDefault(); setDragOverId(id) }
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    if (!dragId || dragId === targetId) { setDragId(null); setDragOverId(null); return }
+    setGroups(prev => {
+      const dragged = prev.find(g => g.id === dragId)
+      const target = prev.find(g => g.id === targetId)
+      if (!dragged || !target) return prev
+      // Same level reorder
+      if (dragged.parentId === target.parentId) {
+        const list = [...prev]
+        const from = list.findIndex(g => g.id === dragId)
+        const to = list.findIndex(g => g.id === targetId)
+        list.splice(from, 1)
+        list.splice(to, 0, dragged)
+        return list
+      }
+      // Move subgroup to another parent (drop subgroup onto root = move)
+      if (dragged.parentId && !target.parentId) {
+        return prev.map(g => g.id === dragId ? { ...g, parentId: target.id } : g)
+      }
+      return prev
+    })
+    setDragId(null)
+    setDragOverId(null)
+  }
+  const handleDragEnd = () => { setDragId(null); setDragOverId(null) }
 
   const rootGroups = groups.filter(g => !g.parentId)
   const getSubgroups = (parentId: string) => groups.filter(g => g.parentId === parentId)
@@ -839,6 +939,12 @@ export function PasswordPage() {
     setGroups(prev => prev.filter(g => g.id !== id && g.parentId !== id))
     setPasswords(prev => prev.map(p => p.groupId === id ? { ...p, groupId: "other" } : p))
     if (activeGroupId === id) setActiveGroupId("all")
+  }
+
+  const openGroupEditor = (group?: Group, parentId?: string) => {
+    setEditingGroup(group)
+    setNewGroupParentId(parentId)
+    setShowGroupEditor(true)
   }
 
   const activeGroupObj = groups.find(g => g.id === activeGroupId)
@@ -897,23 +1003,37 @@ export function PasswordPage() {
 
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-2 mb-1 mt-2">Группы</p>
 
-          {/* Groups tree */}
+          {/* Groups tree with DnD */}
           <div className="flex-1 overflow-y-auto space-y-0.5 pr-0.5">
             {rootGroups.map(group => {
               const Icon = getIconComponent(group.icon)
               const isActive = activeGroupId === group.id
               const subs = getSubgroups(group.id)
               const count = getGroupEntries(group.id).length + subs.reduce((a, sg) => a + getGroupEntries(sg.id).length, 0)
+              const isDragOver = dragOverId === group.id && dragId !== group.id
 
               return (
-                <div key={group.id}>
-                  <motion.button
+                <div key={group.id}
+                  draggable
+                  onDragStart={() => handleDragStart(group.id)}
+                  onDragOver={e => handleDragOver(e, group.id)}
+                  onDrop={e => handleDrop(e, group.id)}
+                  onDragEnd={handleDragEnd}
+                  style={{ opacity: dragId === group.id ? 0.4 : 1, transition: "opacity 0.15s" }}
+                >
+                  <div
+                    className="flex items-center gap-2.5 w-full px-2 py-2 rounded-[11px] cursor-pointer group/row select-none"
+                    style={isActive
+                      ? { background: group.accent, boxShadow: `0 3px 12px ${group.accent.replace("0.85","0.3")}` }
+                      : isDragOver
+                        ? { background: "rgba(147,51,234,0.12)", border: "1.5px dashed rgba(147,51,234,0.4)" }
+                        : { background: "transparent" }}
                     onClick={() => setActiveGroupId(group.id)}
-                    onContextMenu={e => { e.preventDefault(); setEditingGroup(group); setShowGroupEditor(true) }}
-                    className="flex items-center gap-2.5 w-full px-3 py-2 rounded-[11px] group/row"
-                    style={isActive ? { background: group.accent, boxShadow: `0 3px 12px ${group.accent.replace("0.85","0.3")}` } : { background: "transparent" }}
-                    whileHover={isActive ? {} : { background: "rgba(255,255,255,0.55)" }}
-                    whileTap={{ scale: 0.98 }}>
+                    onContextMenu={e => openCtxMenu(e, group)}
+                  >
+                    {/* Drag handle */}
+                    <GripVertical className="h-3 w-3 shrink-0 opacity-0 group-hover/row:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
+                      style={{ color: isActive ? "white" : "#9ca3af" }} strokeWidth={2} />
                     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px]"
                       style={{ background: isActive ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.8)", boxShadow: !isActive ? "inset 0 1px 1px rgba(255,255,255,1)" : "none" }}>
                       <Icon className="h-3.5 w-3.5" strokeWidth={isActive ? 2.2 : 1.75} style={{ color: isActive ? "white" : "#6b7280" }} />
@@ -921,29 +1041,41 @@ export function PasswordPage() {
                     <span className="flex-1 text-[13px] font-semibold truncate" style={{ color: isActive ? "white" : "#374151" }}>{group.name}</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
                       style={{ background: isActive ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.06)", color: isActive ? "white" : "#9ca3af" }}>{count}</span>
-                    <motion.button onClick={e => { e.stopPropagation(); setEditingGroup(group); setShowGroupEditor(true) }}
-                      className="opacity-0 group-hover/row:opacity-100 transition-opacity p-0.5 rounded-[6px] hover:bg-white/30"
-                      whileTap={{ scale: 0.9 }}>
-                      <Pencil className="h-2.5 w-2.5" strokeWidth={2} style={{ color: isActive ? "rgba(255,255,255,0.8)" : "#9ca3af" }} />
-                    </motion.button>
-                  </motion.button>
+                  </div>
 
                   {/* Subgroups */}
                   {subs.map(sg => {
                     const SubIcon = getIconComponent(sg.icon)
                     const isSub = activeGroupId === sg.id
                     const subCount = getGroupEntries(sg.id).length
+                    const isSubDragOver = dragOverId === sg.id && dragId !== sg.id
                     return (
-                      <motion.button key={sg.id} onClick={() => setActiveGroupId(sg.id)}
-                        className="flex items-center gap-2 w-full pl-8 pr-3 py-1.5 rounded-[11px] group/sub"
-                        style={isSub ? { background: sg.accent, boxShadow: `0 2px 8px ${sg.accent.replace("0.85","0.25")}` } : {}}
-                        whileHover={isSub ? {} : { background: "rgba(255,255,255,0.55)" }}
-                        whileTap={{ scale: 0.98 }}>
-                        <SubIcon className="h-3 w-3 shrink-0" strokeWidth={2} style={{ color: isSub ? "white" : "#9ca3af" }} />
-                        <span className="flex-1 text-[12px] font-medium truncate" style={{ color: isSub ? "white" : "#6b7280" }}>{sg.name}</span>
-                        <span className="text-[10px] font-bold px-1 py-0.5 rounded-full"
-                          style={{ background: isSub ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.06)", color: isSub ? "white" : "#9ca3af" }}>{subCount}</span>
-                      </motion.button>
+                      <div key={sg.id}
+                        draggable
+                        onDragStart={e => { e.stopPropagation(); handleDragStart(sg.id) }}
+                        onDragOver={e => { e.stopPropagation(); handleDragOver(e, sg.id) }}
+                        onDrop={e => { e.stopPropagation(); handleDrop(e, sg.id) }}
+                        onDragEnd={handleDragEnd}
+                        style={{ opacity: dragId === sg.id ? 0.4 : 1, transition: "opacity 0.15s" }}
+                      >
+                        <div
+                          className="flex items-center gap-2 w-full pl-6 pr-2 py-1.5 rounded-[11px] cursor-pointer group/sub select-none"
+                          style={isSub
+                            ? { background: sg.accent, boxShadow: `0 2px 8px ${sg.accent.replace("0.85","0.25")}` }
+                            : isSubDragOver
+                              ? { background: "rgba(147,51,234,0.10)", border: "1.5px dashed rgba(147,51,234,0.35)" }
+                              : {}}
+                          onClick={() => setActiveGroupId(sg.id)}
+                          onContextMenu={e => openCtxMenu(e, sg)}
+                        >
+                          <GripVertical className="h-2.5 w-2.5 shrink-0 opacity-0 group-hover/sub:opacity-40 cursor-grab transition-opacity"
+                            style={{ color: isSub ? "white" : "#9ca3af" }} strokeWidth={2} />
+                          <SubIcon className="h-3 w-3 shrink-0" strokeWidth={2} style={{ color: isSub ? "white" : "#9ca3af" }} />
+                          <span className="flex-1 text-[12px] font-medium truncate" style={{ color: isSub ? "white" : "#6b7280" }}>{sg.name}</span>
+                          <span className="text-[10px] font-bold px-1 py-0.5 rounded-full"
+                            style={{ background: isSub ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.06)", color: isSub ? "white" : "#9ca3af" }}>{subCount}</span>
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
@@ -953,7 +1085,7 @@ export function PasswordPage() {
 
           {/* Add group button */}
           <div className="pt-2 mt-2" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
-            <motion.button onClick={() => { setEditingGroup(undefined); setShowGroupEditor(true) }}
+            <motion.button onClick={() => openGroupEditor(undefined, undefined)}
               className="flex items-center gap-2.5 w-full px-3 py-2 rounded-[11px] mb-1"
               whileHover={{ background: "rgba(255,255,255,0.6)" }} whileTap={{ scale: 0.98 }}>
               <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px]"
@@ -1101,10 +1233,25 @@ export function PasswordPage() {
           <SettingsPanel onClose={() => setShowSettings(false)} passwords={passwords} />
         )}
         {showGroupEditor && (
-          <GroupEditorModal group={editingGroup} groups={groups}
-            onClose={() => setShowGroupEditor(false)}
-            onSave={handleSaveGroup}
-            onDelete={editingGroup ? handleDeleteGroup : undefined} />
+          <GroupEditorModal
+            group={editingGroup}
+            groups={groups}
+            onClose={() => { setShowGroupEditor(false); setNewGroupParentId(undefined) }}
+            onSave={g => {
+              // если создаём новую с parentId — проставляем
+              handleSaveGroup(newGroupParentId && !g.parentId ? { ...g, parentId: newGroupParentId } : g)
+            }}
+            onDelete={editingGroup ? handleDeleteGroup : undefined}
+          />
+        )}
+        {ctxMenu && (
+          <GroupContextMenu
+            menu={ctxMenu}
+            onEdit={g => openGroupEditor(g)}
+            onDelete={handleDeleteGroup}
+            onAddSub={parentId => openGroupEditor(undefined, parentId)}
+            onClose={() => setCtxMenu(null)}
+          />
         )}
       </AnimatePresence>
     </main>

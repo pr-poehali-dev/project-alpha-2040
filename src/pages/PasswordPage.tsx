@@ -393,69 +393,87 @@ export function PasswordPage() {
 
       {/* Layout: sidebar + content */}
       <div className="relative z-10 flex min-h-screen">
-        {/* RIGHT sidebar — groups */}
-        <aside className="fixed right-0 top-0 h-full w-[68px] flex flex-col items-center py-8 gap-2 z-20">
-          <div
-            className="flex flex-col items-center gap-2 px-2 py-3 rounded-[22px]"
-            style={{
-              background: "rgba(255,255,255,0.5)",
-              backdropFilter: "blur(30px) saturate(180%)",
-              WebkitBackdropFilter: "blur(30px) saturate(180%)",
-              border: "1px solid rgba(255,255,255,0.6)",
-              boxShadow: "inset 0 1px 1px rgba(255,255,255,0.9), 0 4px 20px rgba(0,0,0,0.08)",
-            }}
-          >
-            {allGroups.map((group) => {
-              const Icon = groupIcons[group] || Lock
-              const isActive = activeGroup === group
-              const accent = groupAccent[group] || "rgba(100,116,139,0.8)"
-              return (
-                <motion.button
-                  key={group}
-                  onClick={() => setActiveGroup(group)}
-                  title={group}
-                  className="relative flex flex-col items-center gap-1 w-12 py-2 rounded-[14px] transition-all"
-                  style={
-                    isActive
-                      ? {
-                          background: accent,
-                          boxShadow: `0 4px 14px ${accent}55, inset 0 1px 1px rgba(255,255,255,0.3)`,
-                        }
-                      : {
-                          background: "rgba(255,255,255,0.5)",
-                          boxShadow: "inset 0 1px 1px rgba(255,255,255,0.9)",
-                        }
-                  }
-                  whileHover={{ scale: 1.07 }}
-                  whileTap={{ scale: 0.94 }}
+        {/* LEFT sidebar — groups */}
+        <aside
+          className="fixed left-0 top-0 h-full w-[220px] flex flex-col py-8 px-4 gap-1 z-20"
+          style={{
+            background: "rgba(255,255,255,0.45)",
+            backdropFilter: "blur(40px) saturate(180%)",
+            WebkitBackdropFilter: "blur(40px) saturate(180%)",
+            borderRight: "1px solid rgba(255,255,255,0.6)",
+            boxShadow: "inset -1px 0 0 rgba(255,255,255,0.8), 4px 0 24px rgba(0,0,0,0.04)",
+          }}
+        >
+          {/* Sidebar header */}
+          <div className="flex items-center gap-2.5 px-2 mb-6">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-[12px] shrink-0"
+              style={{
+                background: "linear-gradient(135deg, rgba(147,51,234,0.9), rgba(236,72,153,0.9))",
+                boxShadow: "0 3px 10px rgba(147,51,234,0.35)",
+              }}
+            >
+              <Lock className="h-4 w-4 text-white" strokeWidth={2} />
+            </div>
+            <span className="text-[15px] font-bold text-gray-800 tracking-tight">Пароли</span>
+          </div>
+
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-2 mb-2">Группы</p>
+
+          {allGroups.map((group) => {
+            const Icon = groupIcons[group] || Lock
+            const isActive = activeGroup === group
+            const accent = groupAccent[group] || "rgba(100,116,139,0.8)"
+            const count = group === "Все" ? passwords.length : passwords.filter((p) => p.group === group).length
+            return (
+              <motion.button
+                key={group}
+                onClick={() => setActiveGroup(group)}
+                className="relative flex items-center gap-3 w-full px-3 py-2.5 rounded-[13px] transition-all text-left"
+                style={
+                  isActive
+                    ? {
+                        background: accent,
+                        boxShadow: `0 4px 14px ${accent}44, inset 0 1px 1px rgba(255,255,255,0.25)`,
+                      }
+                    : {
+                        background: "transparent",
+                      }
+                }
+                whileHover={isActive ? {} : { background: "rgba(255,255,255,0.6)" }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
+                  style={{
+                    background: isActive ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.75)",
+                    boxShadow: isActive ? "none" : "inset 0 1px 1px rgba(255,255,255,1), 0 1px 3px rgba(0,0,0,0.06)",
+                  }}
                 >
                   <Icon
-                    className="h-4 w-4"
+                    className="h-3.5 w-3.5"
                     strokeWidth={isActive ? 2.2 : 1.75}
                     style={{ color: isActive ? "white" : "#6b7280" }}
                   />
-                  <span
-                    className="text-[9px] font-semibold leading-tight text-center"
-                    style={{ color: isActive ? "white" : "#9ca3af" }}
-                  >
-                    {group === "Финансы" ? "Фин." : group === "Прочее" ? "Проч." : group.slice(0, 5)}
-                  </span>
-                  {/* count badge */}
-                  <span
-                    className="absolute -top-1 -right-1 text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full"
-                    style={{
-                      background: isActive ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
-                      color: isActive ? "white" : "#6b7280",
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-                      display: group === "Все" ? "none" : "flex",
-                    }}
-                  >
-                    {passwords.filter((p) => p.group === group).length}
-                  </span>
-                </motion.button>
-              )
-            })}
-          </div>
+                </div>
+                <span
+                  className="flex-1 text-[13px] font-semibold"
+                  style={{ color: isActive ? "white" : "#374151" }}
+                >
+                  {group}
+                </span>
+                <span
+                  className="text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
+                  style={{
+                    background: isActive ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.06)",
+                    color: isActive ? "white" : "#9ca3af",
+                  }}
+                >
+                  {count}
+                </span>
+              </motion.button>
+            )
+          })}
         </aside>
 
         {/* Main content */}
@@ -463,24 +481,15 @@ export function PasswordPage() {
           initial="hidden"
           animate="visible"
           variants={containerVariants}
-          className="flex-1 mx-auto max-w-[460px] w-full flex flex-col gap-5 px-4 py-8 pr-[84px]"
+          className="flex-1 flex flex-col gap-5 px-6 py-8 ml-[220px]"
         >
           {/* Header */}
           <motion.div variants={itemVariants} className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-3">
-              <div
-                className="flex h-11 w-11 items-center justify-center rounded-[18px] shrink-0"
-                style={{
-                  background: "linear-gradient(135deg, rgba(147,51,234,0.9), rgba(236,72,153,0.9))",
-                  boxShadow: "0 4px 16px rgba(147,51,234,0.35), inset 0 1px 1px rgba(255,255,255,0.3)",
-                }}
-              >
-                <Lock className="h-5 w-5 text-white" strokeWidth={2} />
-              </div>
-              <div>
-                <h1 className="text-[20px] font-bold text-gray-900 tracking-tight leading-tight">Мои пароли</h1>
-                <p className="text-[12px] text-gray-500">{passwords.length} записей</p>
-              </div>
+            <div>
+              <h1 className="text-[22px] font-bold text-gray-900 tracking-tight leading-tight">
+                {activeGroup === "Все" ? "Все пароли" : activeGroup}
+              </h1>
+              <p className="text-[12px] text-gray-500">{filtered.length} записей</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -596,37 +605,6 @@ export function PasswordPage() {
               </motion.button>
             </div>
           </motion.div>
-
-          {/* Active group label */}
-          <AnimatePresence mode="wait">
-            {activeGroup !== "Все" && (
-              <motion.div
-                key={activeGroup}
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                className="flex items-center gap-2"
-              >
-                <div
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-[12px] font-semibold"
-                  style={{
-                    background: groupAccent[activeGroup] || "rgba(100,116,139,0.8)",
-                    boxShadow: `0 2px 10px ${groupAccent[activeGroup]}55`,
-                  }}
-                >
-                  {(() => { const Icon = groupIcons[activeGroup] || Lock; return <Icon className="h-3.5 w-3.5" strokeWidth={2} /> })()}
-                  {activeGroup}
-                </div>
-                <button
-                  onClick={() => setActiveGroup("Все")}
-                  className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  Показать все
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Search */}
           <motion.div variants={itemVariants}>
